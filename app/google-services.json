@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "212442115339",
+    "project_id": "ha-bits",
+    "storage_bucket": "ha-bits.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:212442115339:android:d28bdfe3d9c125a0b8060e",
+        "android_client_info": {
+          "package_name": "com.example.Habits"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDrmhS0LNhOk7KTPRI4cOSmywsJnRaBpSU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
