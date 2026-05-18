@@ -14,9 +14,12 @@ interface HabitDao {
     @Update
     suspend fun update(habit: Habit)
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insert(habit: Habit)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(habit: Habit): Long
 
     @Delete
     suspend fun delete(habit: Habit)
+
+    @Query("DELETE FROM habit_table WHERE userId = :userId")
+    suspend fun clearUserHabits(userId: String)
 }

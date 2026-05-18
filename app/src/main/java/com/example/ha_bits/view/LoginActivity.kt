@@ -23,14 +23,19 @@ class LoginActivity : AppCompatActivity() {
     private val googleSignInLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            try {
-                val account = task.getResult(ApiException::class.java)!!
-                firebaseAuthWithGoogle(account.idToken!!)
-            } catch (e: ApiException) {
-                Toast.makeText(this, "Google sign in failed: ${e.message}", Toast.LENGTH_SHORT).show()
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)!!
+            firebaseAuthWithGoogle(account.idToken!!)
+        } catch (e: ApiException) {
+            val errorMessage = when (e.statusCode) {
+                10 -> "Developer Error (10): Check SHA-1 in Firebase Console"
+                7 -> "Network Error: Check your connection"
+                12500 -> "Sign-in Failed (12500): Check Play Services/Config"
+                else -> "Google sign in failed (${e.statusCode}): ${e.message}"
             }
+            Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show()
+            binding.progressBar.visibility = View.GONE
         }
     }
 
@@ -39,7 +44,6 @@ class LoginActivity : AppCompatActivity() {
         
         auth = FirebaseAuth.getInstance()
         
-        // Check if user is already logged in
         if (auth.currentUser != null) {
             navigateToMain()
             return
@@ -48,7 +52,6 @@ class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Configure Google Sign In
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestIdToken(getString(R.string.default_web_client_id))
             .requestEmail()
@@ -97,13 +100,13 @@ class LoginActivity : AppCompatActivity() {
         }
 
         binding.googleSignInButton.setOnClickListener {
+            binding.progressBar.visibility = View.VISIBLE
             val signInIntent = googleSignInClient.signInIntent
             googleSignInLauncher.launch(signInIntent)
         }
     }
 
     private fun firebaseAuthWithGoogle(idToken: String) {
-        binding.progressBar.visibility = View.VISIBLE
         val credential = GoogleAuthProvider.getCredential(idToken, null)
         auth.signInWithCredential(credential)
             .addOnCompleteListener(this) { task ->

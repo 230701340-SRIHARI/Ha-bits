@@ -48,9 +48,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         val recyclerView = findViewById<RecyclerView>(R.id.recyclerView)
+        
+        viewModel = ViewModelProvider(this)[HabitViewModel::class.java]
+
         adapter = HabitAdapter(
             onCompleteClick = { habit ->
                 viewModel.completeHabit(habit)
+            },
+            onArchiveClick = { habit ->
+                viewModel.archiveHabit(habit)
             },
             onDeleteClick = { habit ->
                 showDeleteConfirmationDialog(habit)
@@ -62,7 +68,6 @@ class MainActivity : AppCompatActivity() {
         recyclerView.adapter = adapter
         recyclerView.layoutManager = LinearLayoutManager(this)
 
-        viewModel = ViewModelProvider(this)[HabitViewModel::class.java]
         viewModel.allHabits.observe(this) { habits ->
             adapter.setData(habits.filter { !it.isArchived })
         }
@@ -114,7 +119,6 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Save") { _, _ ->
                 val name = view.findViewById<TextInputEditText>(R.id.editName).text.toString()
                 if (name.isNotBlank()) {
-                    // isOneTime is now always false as the option is removed
                     viewModel.addCustomHabit(name, selectedHour, selectedMinute, false)
                 }
             }
@@ -129,11 +133,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.action_analytics -> {
+                startActivity(Intent(this, AnalyticsActivity::class.java))
+                return true
+            }
             R.id.action_history -> {
                 startActivity(Intent(this, HistoryActivity::class.java))
                 return true
             }
             R.id.action_logout -> {
+                viewModel.clearLocalData()
                 auth.signOut()
                 startActivity(Intent(this, LoginActivity::class.java))
                 finish()

@@ -9,7 +9,9 @@ import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 
 class HabitViewModel(application: Application) : AndroidViewModel(application) {
@@ -35,25 +37,39 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
                 viewModelScope.launch {
                     val firebaseHabits = mutableListOf<Habit>()
                     for (habitSnapshot in snapshot.children) {
-                        val habitMap = habitSnapshot.value as? Map<String, Any>
-                        if (habitMap != null) {
-                            val habit = Habit(
-                                id = (habitMap["id"] as? Long)?.toInt() ?: 0,
+                        val habit = habitSnapshot.getValue(Habit::class.java)
+                        if (habit != null) {
+                            // Robust recovery of boolean flags to prevent sync issues
+                            val archived = habitSnapshot.child("isArchived").getValue(Boolean::class.java) ?: habit.isArchived
+                            val oneTime = habitSnapshot.child("isOneTime").getValue(Boolean::class.java) ?: habit.isOneTime
+                            val broken = habitSnapshot.child("isBroken").getValue(Boolean::class.java) ?: habit.isBroken
+                            val custom = habitSnapshot.child("isCustom").getValue(Boolean::class.java) ?: habit.isCustom
+                            
+                            firebaseHabits.add(habit.copy(
                                 userId = currentUserId,
-                                name = habitMap["name"] as? String ?: "",
-                                streak = (habitMap["streak"] as? Long)?.toInt() ?: 0,
-                                lastCompleted = habitMap["lastCompleted"] as? Long ?: 0L,
-                                isCustom = habitMap["isCustom"] as? Boolean ?: false,
-                                isBroken = habitMap["isBroken"] as? Boolean ?: false,
-                                reminderHour = (habitMap["reminderHour"] as? Long)?.toInt() ?: 12,
-                                reminderMinute = (habitMap["reminderMinute"] as? Long)?.toInt() ?: 0,
-                                isOneTime = habitMap["isOneTime"] as? Boolean ?: false,
-                                isArchived = habitMap["isArchived"] as? Boolean ?: false
-                            )
-                            firebaseHabits.add(habit)
+                                isArchived = archived,
+                                isOneTime = oneTime,
+                                isBroken = broken,
+                                isCustom = custom
+                            ))
                         }
                     }
-                    firebaseHabits.forEach { dao.insert(it) }
+                    
+                    withContext(Dispatchers.IO) {
+                        if (snapshot.exists()) {
+                            val localHabits = dao.getAllHabitsOnce(currentUserId)
+                            val firebaseIds = firebaseHabits.map { it.id }.toSet()
+                            
+                            localHabits.forEach { local ->
+                                if (local.id !in firebaseIds) {
+                                    dao.delete(local)
+                                }
+                            }
+                            firebaseHabits.forEach { dao.insert(it) }
+                        } else {
+                            dao.clearUserHabits(currentUserId)
+                        }
+                    }
                 }
             }
 
@@ -66,17 +82,17 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
             val now = System.currentTimeMillis()
             if (isSameDay(habit.lastCompleted, now)) return@launch
 
-            val updatedHabit = if (habit.isBroken) {
-                habit
-            } else {
-                val newStreak = habit.streak + 1
-                if (habit.isOneTime) {
-                    habit.copy(streak = newStreak, lastCompleted = now, isArchived = true)
-                } else {
-                    habit.copy(streak = newStreak, lastCompleted = now)
-                }
-            }
+            val newStreak = habit.streak + 1
+            val updatedHabit = habit.copy(streak = newStreak, lastCompleted = now)
             
+            updateHabit(updatedHabit)
+        }
+    }
+
+    fun archiveHabit(habit: Habit) {
+        viewModelScope.launch {
+            // Always archive instead of deleting so it stays in history
+            val updatedHabit = habit.copy(isArchived = true)
             updateHabit(updatedHabit)
         }
     }
@@ -111,9 +127,10 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
                 reminderMinute = reminderMinute,
                 isOneTime = isOneTime
             )
-            dao.insert(newHabit)
-            val latestHabits = dao.getAllHabitsOnce(currentUserId)
-            db.child(currentUserId).child("habits").setValue(latestHabits)
+            val id = dao.insert(newHabit)
+            val habitWithId = newHabit.copy(id = id.toInt())
+            
+            db.child(currentUserId).child("habits").child(habitWithId.id.toString()).setValue(habitWithId)
         }
     }
 
@@ -126,6 +143,14 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
+    fun clearLocalData() {
+        viewModelScope.launch(Dispatchers.IO) {
+            userId?.let {
+                dao.clearUserHabits(it)
+            }
+        }
+    }
+
     fun refreshStreaks() {
         val currentUserId = userId ?: return
         viewModelScope.launch {

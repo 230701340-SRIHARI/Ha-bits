@@ -11,6 +11,7 @@ import com.google.android.material.button.MaterialButton
 
 class HabitAdapter(
     private val onCompleteClick: (Habit) -> Unit,
+    private val onArchiveClick: (Habit) -> Unit,
     private val onDeleteClick: (Habit) -> Unit,
     private val onStartFreshClick: (Habit) -> Unit
 ) : RecyclerView.Adapter<HabitAdapter.HabitViewHolder>() {
@@ -22,6 +23,7 @@ class HabitAdapter(
         val streak: TextView = itemView.findViewById(R.id.habitStreak)
         val brokenStatus: TextView = itemView.findViewById(R.id.brokenStatus)
         val btnComplete: MaterialButton = itemView.findViewById(R.id.btnComplete)
+        val btnArchive: MaterialButton = itemView.findViewById(R.id.btnArchive)
         val btnStartFresh: MaterialButton = itemView.findViewById(R.id.btnStartFresh)
     }
 
@@ -38,16 +40,19 @@ class HabitAdapter(
         if (current.isBroken) {
             holder.brokenStatus.visibility = View.VISIBLE
             holder.btnComplete.visibility = View.GONE
+            holder.btnArchive.visibility = View.GONE
             holder.btnStartFresh.visibility = View.VISIBLE
             holder.streak.setTextColor(holder.itemView.context.getColor(com.google.android.material.R.color.design_default_color_error))
         } else {
             holder.brokenStatus.visibility = View.GONE
             holder.btnComplete.visibility = View.VISIBLE
+            holder.btnArchive.visibility = View.VISIBLE
             holder.btnStartFresh.visibility = View.GONE
             holder.streak.setTextColor(holder.itemView.context.getColor(com.google.android.material.R.color.design_default_color_primary))
         }
 
         holder.btnComplete.setOnClickListener { onCompleteClick(current) }
+        holder.btnArchive.setOnClickListener { onArchiveClick(current) }
         holder.btnStartFresh.setOnClickListener { onStartFreshClick(current) }
         
         holder.itemView.setOnLongClickListener {
